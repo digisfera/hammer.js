@@ -1,4 +1,4 @@
-/*! Hammer.JS - v2.0.4 - 2014-09-28
+/*! Hammer.JS - v2.0.4 - 2014-11-13
  * http://hammerjs.github.io/
  *
  * Copyright (c) 2014 Jorik Tangelder;
@@ -320,8 +320,8 @@ function uniqueId() {
  * @returns {DocumentView|Window}
  */
 function getWindowForElement(element) {
-    var doc = element.ownerDocument;
-    return (doc.defaultView || doc.parentWindow);
+    var doc = element.ownerDocument || element;
+    return (doc.defaultView || doc.parentWindow || window);
 }
 
 var MOBILE_REGEX = /mobile|tablet|ip(ad|hone|od)|android/i;
@@ -395,6 +395,8 @@ Input.prototype = {
         this.evEl && addEventListeners(this.element, this.evEl, this.domHandler);
         this.evTarget && addEventListeners(this.target, this.evTarget, this.domHandler);
         this.evWin && addEventListeners(getWindowForElement(this.element), this.evWin, this.domHandler);
+        this.evDoc && addEventListeners(document, this.evDoc, this.domHandler);
+        this.evBody && addEventListeners(document.body, this.evBody, this.domHandler);
     },
 
     /**
@@ -404,6 +406,8 @@ Input.prototype = {
         this.evEl && removeEventListeners(this.element, this.evEl, this.domHandler);
         this.evTarget && removeEventListeners(this.target, this.evTarget, this.domHandler);
         this.evWin && removeEventListeners(getWindowForElement(this.element), this.evWin, this.domHandler);
+        this.evDoc && removeEventListeners(document, this.evDoc, this.domHandler);
+        this.evBody && removeEventListeners(document.body, this.evBody, this.domHandler);
     }
 };
 
@@ -720,6 +724,8 @@ var MOUSE_INPUT_MAP = {
 var MOUSE_ELEMENT_EVENTS = 'mousedown';
 var MOUSE_WINDOW_EVENTS = 'mousemove mouseup';
 
+var isIE8 = window.navigator.userAgent.indexOf('MSIE 8') > 0;
+
 /**
  * Mouse events input
  * @constructor
@@ -727,7 +733,13 @@ var MOUSE_WINDOW_EVENTS = 'mousemove mouseup';
  */
 function MouseInput() {
     this.evEl = MOUSE_ELEMENT_EVENTS;
-    this.evWin = MOUSE_WINDOW_EVENTS;
+
+    if (isIE8) {
+        // mousemove and moveup don't bubble to the window in IE8 - attach events to the document.body instead
+        this.evDoc = MOUSE_WINDOW_EVENTS;
+    } else {
+        this.evWin = MOUSE_WINDOW_EVENTS;
+    }
 
     this.allow = true; // used by Input.TouchMouse to disable mouse events
     this.pressed = false; // mousedown state
@@ -743,12 +755,24 @@ inherit(MouseInput, Input, {
     handler: function MEhandler(ev) {
         var eventType = MOUSE_INPUT_MAP[ev.type];
 
+        // IE8 uses non-standard button indices:
+        // http://msdn.microsoft.com/en-us/library/ie/ms533544(v=vs.85).aspx
+        // left button is 1
+        //
+        // Standard is here:
+        // http://msdn.microsoft.com/en-us/library/ie/ff974877(v=vs.85).aspx
+        // left button is 0
+        var leftMouseButton = 0;
+        if (isIE8) {
+            leftMouseButton = 1;
+        }
+
         // on start we want to have the left mouse button down
-        if (eventType & INPUT_START && ev.button === 0) {
+        if (eventType & INPUT_START && ev.button === leftMouseButton) {
             this.pressed = true;
         }
 
-        if (eventType & INPUT_MOVE && ev.which !== 1) {
+        if (eventType & INPUT_MOVE && ev.button !== leftMouseButton) {
             eventType = INPUT_END;
         }
 
@@ -1114,7 +1138,7 @@ TouchAction.prototype = {
             value = this.compute();
         }
 
-        if (NATIVE_TOUCH_ACTION) {
+        if (NATIVE_TOUCH_ACTION && this.manager.element.style) {
             this.manager.element.style[PREFIXED_TOUCH_ACTION] = value;
         }
         this.actions = value.toLowerCase().trim();
@@ -1981,7 +2005,7 @@ inherit(TapRecognizer, Recognizer, {
     },
 
     emit: function() {
-        if (this.state == STATE_RECOGNIZED ) {
+        if (this.state == STATE_RECOGNIZED) {
             this._input.tapCount = this.count;
             this.manager.emit(this.options.event, this._input);
         }
@@ -2055,12 +2079,12 @@ Hammer.defaults = {
      */
     preset: [
         // RecognizerClass, options, [recognizeWith, ...], [requireFailure, ...]
-        [RotateRecognizer, { enable: false }],
-        [PinchRecognizer, { enable: false }, ['rotate']],
-        [SwipeRecognizer,{ direction: DIRECTION_HORIZONTAL }],
-        [PanRecognizer, { direction: DIRECTION_HORIZONTAL }, ['swipe']],
+        [RotateRecognizer, {enable: false}],
+        [PinchRecognizer, {enable: false}, ['rotate']],
+        [SwipeRecognizer, {direction: DIRECTION_HORIZONTAL}],
+        [PanRecognizer, {direction: DIRECTION_HORIZONTAL}, ['swipe']],
         [TapRecognizer],
-        [TapRecognizer, { event: 'doubletap', taps: 2 }, ['tap']],
+        [TapRecognizer, {event: 'doubletap', taps: 2}, ['tap']],
         [PressRecognizer]
     ],
 
@@ -2381,6 +2405,9 @@ Manager.prototype = {
  */
 function toggleCssProps(manager, add) {
     var element = manager.element;
+    if (!element.style) {
+        return;
+    }
     each(manager.options.cssProps, function(value, name) {
         element.style[prefixed(element.style, name)] = add ? value : '';
     });
