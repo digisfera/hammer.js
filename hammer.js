@@ -15,6 +15,21 @@ var round = Math.round;
 var abs = Math.abs;
 var now = Date.now;
 
+// fixes IE8 bug on Object.create
+if (!Object.create) {
+    Object.create = (function(){
+        function F(){}
+
+        return function(o){
+            if (arguments.length != 1) {
+                throw new Error('Object.create implementation only accepts one parameter.');
+            }
+            F.prototype = o;
+            return new F()
+        }
+    })()
+}
+
 /**
  * set a timeout with a given scope
  * @param {Function} fn
