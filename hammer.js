@@ -1,7 +1,7 @@
-/*! Hammer.JS - v2.0.4 - 2014-11-13
+/*! Hammer.JS - v2.0.4 - 2015-01-30
  * http://hammerjs.github.io/
  *
- * Copyright (c) 2014 Jorik Tangelder;
+ * Copyright (c) 2015 Jorik Tangelder;
  * Licensed under the MIT license */
 (function(window, document, exportName, undefined) {
   'use strict';
@@ -103,6 +103,27 @@ function merge(dest, src) {
 }
 
 /**
+ * Basic Object.create polyfill (for IE8 support)
+ *
+ * This does not support the second argument to Object.create (property descriptor).
+ *
+ * Uses native Object.create if available, otherwise provides a basic polyfill.
+ *
+ * @param {Object} proto - the prototype to use for the new Object
+ * @return {Object} - the new object
+ */
+function objectCreate(proto) {
+    if (Object.create) {
+        return Object.create(proto);
+    }
+    var Obj = function() {};
+    Obj.prototype = proto;
+    var result = new Obj();
+    Obj.prototype = null;
+    return result;
+}
+
+/**
  * simple class inheritance
  * @param {Function} child
  * @param {Function} base
@@ -112,7 +133,7 @@ function inherit(child, base, properties) {
     var baseP = base.prototype,
         childP;
 
-    childP = child.prototype = Object.create(baseP);
+    childP = child.prototype = objectCreate(baseP);
     childP.constructor = child;
     childP._super = baseP;
 
